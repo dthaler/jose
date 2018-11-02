@@ -28,7 +28,7 @@ hsh(jose_cfg_t *cfg, const char *alg, const void *data, size_t dlen)
     jose_io_auto_t *hsh = NULL;
     jose_io_auto_t *enc = NULL;
     jose_io_auto_t *buf = NULL;
-    char b[1024] = {};
+    char b[1024] = {0};
     size_t l = sizeof(b);
 
     buf = jose_io_buffer(cfg, b, &l);

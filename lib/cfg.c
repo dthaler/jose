@@ -23,6 +23,11 @@
 #include <string.h>
 #include <errno.h>
 
+#ifdef USE_SGX
+# define fprintf(...)
+# define vfprintf(...)
+#endif
+
 struct jose_cfg {
     size_t refs;
 
@@ -42,7 +47,7 @@ static struct {
     XX(JOSE_CFG_ERR_ALG_NOINFER),
     XX(JOSE_CFG_ERR_JWS_INVALID),
 #undef XX
-    {}
+    {0}
 };
 
 static const char *

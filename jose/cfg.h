@@ -126,12 +126,28 @@ jose_cfg_get_err_misc(jose_cfg_t *cfg);
 void
 jose_cfg_err(jose_cfg_t *cfg, uint64_t err, const char *fmt, ...);
 #else
-void __attribute__((format(printf, 5, 6)))
+void
+#if !defined(_MSC_VER)
+__attribute__((format(printf, 5, 6)))
+#endif
 jose_cfg_err(jose_cfg_t *cfg, const char *file, int line, uint64_t err,
              const char *fmt, ...);
 
 #define jose_cfg_err(cfg, err, ...) \
     jose_cfg_err(cfg, __FILE__, __LINE__, err, __VA_ARGS__)
+#endif
+
+#ifdef USE_SGX
+/****************** SGX defines ***************/
+#include <stdlib.h>
+#include <sgx.h>
+#include <sgx_tprotected_fs.h>
+#define FILE SGX_FILE
+#define fwrite sgx_fwrite
+#define fopen  sgx_fopen_auto_key
+#define fclose sgx_fclose
+#define stdin NULL
+#define stderr NULL
 #endif
 
 /** @} */

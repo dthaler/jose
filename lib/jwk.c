@@ -466,7 +466,7 @@ constructor(void)
           .oper = { .pub = "deriveKey" } },
         { .kind = JOSE_HOOK_JWK_KIND_OPER,
           .oper = { .pub = "deriveBits" } },
-        {}
+        {0}
     };
 
     for (size_t i = 0; hooks[i].kind != JOSE_HOOK_JWK_KIND_NONE; i++)

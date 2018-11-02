@@ -26,7 +26,9 @@
 #include <errno.h>
 #include <string.h>
 
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 
 static bool
 jwe_hdr_set_new(json_t *jwe, const char *name, json_t *value)
@@ -101,10 +103,10 @@ jose_jwe_enc(jose_cfg_t *cfg, json_t *jwe, json_t *rcp, const json_t *jwk,
 
     cek = json_object();
     if (!cek)
-        return NULL;
+        return false;
 
     if (!jose_jwe_enc_jwk(cfg, jwe, rcp, jwk, cek))
-        return NULL;
+        return false;
 
     return jose_jwe_enc_cek(cfg, jwe, cek, pt, ptl);
 }
@@ -209,7 +211,7 @@ jose_jwe_enc_jwk(jose_cfg_t *cfg, json_t *jwe, json_t *rcp, const json_t *jwk,
             jwk = json_object_get(jwk, "keys");
 
         if (json_is_array(rcp) && json_array_size(rcp) != json_array_size(jwk))
-            return NULL;
+            return false;
 
         for (size_t i = 0; i < json_array_size(jwk); i++) {
             json_auto_t *tmp = NULL;
