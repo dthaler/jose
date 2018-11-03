@@ -36,7 +36,7 @@ jwk_make_handles(jose_cfg_t *cfg, const json_t *jwk)
 static bool
 jwk_make_execute(jose_cfg_t *cfg, json_t *jwk)
 {
-    uint8_t key[KEYMAX] = {};
+    uint8_t key[KEYMAX] = {0};
     json_int_t len = 0;
 
     if (!jwk_make_handles(cfg, jwk))
@@ -72,3 +72,10 @@ constructor(void)
 
     jose_hook_jwk_push(&jwk);
 }
+
+#ifdef USE_SGX
+void jose_init_oct(void)
+{
+    constructor();
+}
+#endif
