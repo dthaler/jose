@@ -23,6 +23,7 @@
 #include <openssl/sha.h>
 
 #include <string.h>
+#include <assert.h>
 
 #define NAMES "RS256", "RS384", "RS512", "PS256", "PS384", "PS512"
 
@@ -69,7 +70,8 @@ sig_done(jose_io_t *io)
     if (EVP_DigestSignFinal(i->emc, NULL, &len) <= 0)
         return false;
 
-    uint8_t* buf = (uint8_t*)alloca(len);
+    uint8_t buf[1024];
+    assert(len <= sizeof(buf));
 
     if (EVP_DigestSignFinal(i->emc, buf, &len) <= 0)
         return false;
@@ -334,3 +336,10 @@ constructor(void)
     for (size_t i = 0; algs[i].name; i++)
         jose_hook_alg_push(&algs[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_rsassa(void)
+{
+    constructor();
+}
+#endif
