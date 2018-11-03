@@ -141,10 +141,17 @@ constructor(void)
           .exch.prm = "deriveKey",
           .exch.sug = alg_exch_sug,
           .exch.exc = alg_exch_exc },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);
     for (size_t i = 0; ecdh[i].name; i++)
         jose_hook_alg_push(&ecdh[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_ecdh(void)
+{
+    constructor();
+}
+#endif

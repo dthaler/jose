@@ -134,7 +134,7 @@ constructor(void)
           .exch.prm = "deriveKey",
           .exch.sug = alg_exch_sug,
           .exch.exc = alg_exch_exc },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);

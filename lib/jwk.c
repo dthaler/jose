@@ -472,3 +472,10 @@ constructor(void)
     for (size_t i = 0; hooks[i].kind != JOSE_HOOK_JWK_KIND_NONE; i++)
         jose_hook_jwk_push(&hooks[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_jwk(void)
+{
+    constructor();
+}
+#endif

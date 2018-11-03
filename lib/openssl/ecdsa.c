@@ -64,7 +64,8 @@ static bool
 sig_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t buf[(EC_GROUP_get_degree(EC_KEY_get0_group(i->key)) + 7) / 8 * 2];
+    size_t sizeof_buf = (EC_GROUP_get_degree(EC_KEY_get0_group(i->key)) + 7) / 8 * 2;
+    uint8_t* buf = (uint8_t*)alloca(sizeof_buf);
     openssl_auto(ECDSA_SIG) *ecdsa = NULL;
     const BIGNUM *r = NULL;
     const BIGNUM *s = NULL;
@@ -78,14 +79,14 @@ sig_done(jose_io_t *io)
 
     ECDSA_SIG_get0(ecdsa, &r, &s);
 
-    if (!bn_encode(r, buf, sizeof(buf) / 2))
+    if (!bn_encode(r, buf, sizeof_buf / 2))
         return false;
 
-    if (!bn_encode(s, &buf[sizeof(buf) / 2], sizeof(buf) / 2))
+    if (!bn_encode(s, &buf[sizeof_buf / 2], sizeof_buf / 2))
         return false;
 
     if (json_object_set_new(i->sig, "signature",
-                            jose_b64_enc(buf, sizeof(buf))) < 0)
+                            jose_b64_enc(buf, sizeof_buf)) < 0)
         return false;
 
     return add_entity(i->obj, i->sig,
@@ -96,7 +97,8 @@ static bool
 ver_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t buf[(EC_GROUP_get_degree(EC_KEY_get0_group(i->key)) + 7) / 8 * 2];
+    size_t sizeof_buf = (EC_GROUP_get_degree(EC_KEY_get0_group(i->key)) + 7) / 8 * 2;
+    uint8_t* buf = (uint8_t*)alloca(sizeof_buf);
     openssl_auto(ECDSA_SIG) *ecdsa = NULL;
     const json_t *sig = NULL;
     BIGNUM *r = NULL;
@@ -106,18 +108,18 @@ ver_done(jose_io_t *io)
     if (!sig)
         return false;
 
-    if (jose_b64_dec(sig, NULL, 0) != sizeof(buf))
+    if (jose_b64_dec(sig, NULL, 0) != sizeof_buf)
         return false;
 
-    if (jose_b64_dec(sig, buf, sizeof(buf)) != sizeof(buf))
+    if (jose_b64_dec(sig, buf, sizeof_buf) != sizeof_buf)
         return false;
 
     ecdsa = ECDSA_SIG_new();
     if (!ecdsa)
         return false;
 
-    r = bn_decode(buf, sizeof(buf) / 2);
-    s = bn_decode(&buf[sizeof(buf) / 2], sizeof(buf) / 2);
+    r = bn_decode(buf, sizeof_buf / 2);
+    s = bn_decode(&buf[sizeof_buf / 2], sizeof_buf / 2);
     if (ECDSA_SIG_set0(ecdsa, r, s) <= 0) {
         BN_free(r);
         BN_free(s);
@@ -302,7 +304,7 @@ constructor(void)
           .sign.sug = alg_sign_sug,
           .sign.sig = alg_sign_sig,
           .sign.ver = alg_sign_ver },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);

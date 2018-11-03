@@ -26,7 +26,12 @@
 
 #define NAMES "RS256", "RS384", "RS512", "PS256", "PS384", "PS512"
 
+#ifdef _MSC_VER
+typedef int (init_t)(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
+                     const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
+#else
 typedef typeof(EVP_DigestSignInit) init_t;
+#endif
 
 declare_cleanup(EVP_PKEY)
 
@@ -64,7 +69,7 @@ sig_done(jose_io_t *io)
     if (EVP_DigestSignFinal(i->emc, NULL, &len) <= 0)
         return false;
 
-    uint8_t buf[len];
+    uint8_t* buf = (uint8_t*)alloca(len);
 
     if (EVP_DigestSignFinal(i->emc, buf, &len) <= 0)
         return false;
@@ -322,7 +327,7 @@ constructor(void)
           .sign.sug = alg_sign_sug,
           .sign.sig = alg_sign_sig,
           .sign.ver = alg_sign_ver },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);

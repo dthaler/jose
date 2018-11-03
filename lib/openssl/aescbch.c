@@ -23,6 +23,7 @@
 #include <openssl/sha.h>
 
 #include <string.h>
+#include <assert.h>
 
 #define NAMES "A128CBC-HS256", "A192CBC-HS384", "A256CBC-HS512"
 
@@ -154,7 +155,8 @@ enc_feed(jose_io_t *io, const void *in, size_t len)
 {
     io_t *i = containerof(io, io_t, io);
 
-    uint8_t ct[EVP_CIPHER_CTX_block_size(i->cctx) + 1];
+    uint8_t ct[CIPHER_BLOCK_MAX + 1];
+    assert(EVP_CIPHER_CTX_block_size(i->cctx) <= CIPHER_BLOCK_MAX);
     const uint8_t *pt = in;
 
     for (size_t j = 0; j < len; j++) {
@@ -177,10 +179,13 @@ static bool
 enc_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t ct[EVP_CIPHER_CTX_block_size(i->cctx) + 1];
-    uint8_t tg[EVP_MD_size(HMAC_CTX_get_md(i->hctx))];
+    uint8_t ct[CIPHER_BLOCK_MAX + 1];
+    size_t sizeof_tg = EVP_MD_size(HMAC_CTX_get_md(i->hctx));
+    uint8_t tg[64];
     int l = 0;
 
+    assert(sizeof_tg <= sizeof(tg));
+    assert(EVP_CIPHER_CTX_block_size(i->cctx) <= CIPHER_BLOCK_MAX);
     if (EVP_EncryptFinal(i->cctx, ct, &l) <= 0)
         return false;
 
@@ -197,7 +202,7 @@ enc_done(jose_io_t *io)
         return false;
 
     if (json_object_set_new(i->json, "tag",
-                            jose_b64_enc(tg, sizeof(tg) / 2)) < 0)
+                            jose_b64_enc(tg, sizeof_tg / 2)) < 0)
         return false;
 
     return true;
@@ -207,11 +212,13 @@ static bool
 dec_feed(jose_io_t *io, const void *in, size_t len)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t pt[EVP_CIPHER_CTX_block_size(i->cctx) + 1];
+    const size_t sizeof_pt = EVP_CIPHER_CTX_block_size(i->cctx) + 1;
+    uint8_t pt[CIPHER_BLOCK_MAX + 1];
     const uint8_t *ct = in;
     bool ret = false;
     int l = 0;
 
+    assert(sizeof_pt <= CIPHER_BLOCK_MAX + 1);
     if (HMAC_Update(i->hctx, in, len) <= 0)
         return false;
 
@@ -226,7 +233,7 @@ dec_feed(jose_io_t *io, const void *in, size_t len)
     ret = true;
 
 egress:
-    OPENSSL_cleanse(pt, sizeof(pt));
+    OPENSSL_cleanse(pt, sizeof_pt);
     return ret;
 }
 
@@ -234,20 +241,26 @@ static bool
 dec_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t pt[EVP_CIPHER_CTX_block_size(i->cctx) + 1];
-    uint8_t tg[EVP_MD_size(HMAC_CTX_get_md(i->hctx))];
-    uint8_t bf[sizeof(tg) / 2];
+    const size_t sizeof_pt = EVP_CIPHER_CTX_block_size(i->cctx) + 1;
+    uint8_t pt[CIPHER_BLOCK_MAX + 1];
+    const size_t sizeof_tg = EVP_MD_size(HMAC_CTX_get_md(i->hctx));
+    uint8_t tg[64];
+    const size_t sizeof_bf = sizeof_tg / 2;
+    uint8_t bf[32];
     json_t *tag = NULL;
     int l = 0;
 
+    assert(sizeof_pt <= sizeof(pt));
+    assert(sizeof_tg <= sizeof(tg));
+    assert(sizeof_bf <= sizeof(bf));
     tag = json_object_get(i->json, "tag");
     if (!tag)
         return false;
 
-    if (jose_b64_dec(tag, NULL, 0) != sizeof(bf))
+    if (jose_b64_dec(tag, NULL, 0) != sizeof_bf)
         return false;
 
-    if (jose_b64_dec(tag, bf, sizeof(bf)) != sizeof(bf))
+    if (jose_b64_dec(tag, bf, sizeof_bf) != sizeof_bf)
         return false;
 
     if (HMAC_Update(i->hctx, (void *) &i->al, sizeof(i->al)) <= 0)
@@ -256,31 +269,40 @@ dec_done(jose_io_t *io)
     if (HMAC_Final(i->hctx, tg, NULL) <= 0)
         return false;
 
-    if (CRYPTO_memcmp(tg, bf, sizeof(bf)) != 0)
+    if (CRYPTO_memcmp(tg, bf, sizeof_bf) != 0)
         return false;
 
     if (EVP_DecryptFinal(i->cctx, pt, &l) <= 0)
         return false;
 
     if (!i->next->feed(i->next, pt, l) || !i->next->done(i->next)) {
-        OPENSSL_cleanse(pt, sizeof(pt));
+        OPENSSL_cleanse(pt, sizeof_pt);
         return false;
     }
 
-    OPENSSL_cleanse(pt, sizeof(pt));
+    OPENSSL_cleanse(pt, sizeof_pt);
     return true;
 }
+
+#ifdef _MSC_VER
+typedef int (func_t)(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
+                     const unsigned char *key, const unsigned char *iv);
+#else
+typedef typeof(EVP_EncryptInit) func_t;
+#endif
 
 static bool
 setup(const EVP_CIPHER *cph, const EVP_MD *md, jose_cfg_t *cfg,
       const json_t *jwe, const json_t *cek, uint8_t *iv,
-      typeof(EVP_EncryptInit) func, io_t *i)
+      func_t func, io_t *i)
 {
-    uint8_t key[EVP_CIPHER_key_length(cph) * 2];
+    const size_t sizeof_key = EVP_CIPHER_key_length(cph) * 2;
+    uint8_t key[KEYMAX];
     const char *aad = NULL;
     const char *prt = "";
 
-    if (jose_b64_dec(json_object_get(cek, "k"), NULL, 0) != sizeof(key))
+    assert(sizeof_key <= sizeof(key));
+    if (jose_b64_dec(json_object_get(cek, "k"), NULL, 0) != sizeof_key)
         return false;
 
     if (json_unpack((json_t *) jwe, "{s?s,s?s}",
@@ -295,26 +317,26 @@ setup(const EVP_CIPHER *cph, const EVP_MD *md, jose_cfg_t *cfg,
     if (!i->hctx)
         return false;
 
-    if (jose_b64_dec(json_object_get(cek, "k"), NULL, 0) != sizeof(key))
+    if (jose_b64_dec(json_object_get(cek, "k"), NULL, 0) != sizeof_key)
         return false;
 
     if (jose_b64_dec(json_object_get(cek, "k"), key,
-                     sizeof(key)) != sizeof(key)) {
-        OPENSSL_cleanse(key, sizeof(key));
+                     sizeof_key) != sizeof_key) {
+        OPENSSL_cleanse(key, sizeof_key);
         return false;
     }
 
-    if (HMAC_Init_ex(i->hctx, key, sizeof(key) / 2, md, NULL) <= 0) {
-        OPENSSL_cleanse(key, sizeof(key));
+    if (HMAC_Init_ex(i->hctx, key, sizeof_key / 2, md, NULL) <= 0) {
+        OPENSSL_cleanse(key, sizeof_key);
         return false;
     }
 
-    if (func(i->cctx, cph, &key[sizeof(key) / 2], iv) <= 0) {
-        OPENSSL_cleanse(key, sizeof(key));
+    if (func(i->cctx, cph, &key[sizeof_key / 2], iv) <= 0) {
+        OPENSSL_cleanse(key, sizeof_key);
         return false;
     }
 
-    OPENSSL_cleanse(key, sizeof(key));
+    OPENSSL_cleanse(key, sizeof_key);
 
     i->al += strlen(prt);
     if (HMAC_Update(i->hctx, (void *) prt, strlen(prt)) <= 0)
@@ -354,9 +376,11 @@ alg_encr_enc(const jose_hook_alg_t *alg, jose_cfg_t *cfg, json_t *jwe,
     default: return NULL;
     }
 
-    uint8_t iv[EVP_CIPHER_iv_length(cph)];
+    const size_t sizeof_iv = EVP_CIPHER_iv_length(cph);
+    uint8_t iv[KEYMAX];
 
-    if (RAND_bytes(iv, sizeof(iv)) <= 0)
+    assert(sizeof_iv <= sizeof(iv));
+    if (RAND_bytes(iv, sizeof_iv) <= 0)
         return NULL;
 
     i = calloc(1, sizeof(*i));
@@ -376,7 +400,7 @@ alg_encr_enc(const jose_hook_alg_t *alg, jose_cfg_t *cfg, json_t *jwe,
     if (!setup(cph, md, cfg, jwe, cek, iv, EVP_EncryptInit, i))
         return NULL;
 
-    if (json_object_set_new(jwe, "iv", jose_b64_enc(iv, sizeof(iv))) < 0)
+    if (json_object_set_new(jwe, "iv", jose_b64_enc(iv, sizeof_iv)) < 0)
         return NULL;
 
     return jose_io_incref(io);
@@ -398,12 +422,14 @@ alg_encr_dec(const jose_hook_alg_t *alg, jose_cfg_t *cfg, const json_t *jwe,
     default: return NULL;
     }
 
-    uint8_t iv[EVP_CIPHER_iv_length(cph)];
+    const size_t sizeof_iv = EVP_CIPHER_iv_length(cph);
+    uint8_t iv[KEYMAX];
 
-    if (jose_b64_dec(json_object_get(jwe, "iv"), NULL, 0) != sizeof(iv))
+    assert(sizeof_iv <= sizeof(iv));
+    if (jose_b64_dec(json_object_get(jwe, "iv"), NULL, 0) != sizeof_iv)
         return NULL;
 
-    if (jose_b64_dec(json_object_get(jwe, "iv"), iv, sizeof(iv)) != sizeof(iv))
+    if (jose_b64_dec(json_object_get(jwe, "iv"), iv, sizeof_iv) != sizeof_iv)
         return NULL;
 
     i = calloc(1, sizeof(*i));
@@ -457,10 +483,17 @@ constructor(void)
           .encr.sug = alg_encr_sug,
           .encr.enc = alg_encr_enc,
           .encr.dec = alg_encr_dec },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);
     for (size_t i = 0; algs[i].name; i++)
         jose_hook_alg_push(&algs[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_aescbch(void)
+{
+    constructor();
+}
+#endif

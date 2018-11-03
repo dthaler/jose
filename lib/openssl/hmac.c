@@ -55,14 +55,15 @@ static bool
 sig_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t hash[HMAC_size(i->hctx)];
+    size_t sizeof_hash = HMAC_size(i->hctx);
+    uint8_t* hash = (uint8_t*)alloca(sizeof_hash);
     unsigned int len = 0;
 
-    if (HMAC_Final(i->hctx, hash, &len) <= 0 || len != sizeof(hash))
+    if (HMAC_Final(i->hctx, hash, &len) <= 0 || len != sizeof_hash)
         return false;
 
     if (json_object_set_new(i->sig, "signature",
-                            jose_b64_enc(hash, sizeof(hash))) < 0)
+                            jose_b64_enc(hash, sizeof_hash)) < 0)
         return false;
 
     return add_entity(i->obj, i->sig,
@@ -73,8 +74,9 @@ static bool
 ver_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t hash[HMAC_size(i->hctx)];
-    uint8_t test[HMAC_size(i->hctx)];
+    size_t sizeof_hash = HMAC_size(i->hctx);
+    uint8_t* hash = (uint8_t*)alloca(sizeof_hash);
+    uint8_t* test = (uint8_t*)alloca(sizeof_hash);
     const json_t *sig = NULL;
     unsigned int len = 0;
 
@@ -82,23 +84,23 @@ ver_done(jose_io_t *io)
     if (!sig)
         return false;
 
-    if (jose_b64_dec(sig, NULL, 0) != sizeof(test))
+    if (jose_b64_dec(sig, NULL, 0) != sizeof_hash)
         return false;
 
-    if (jose_b64_dec(sig, test, sizeof(test)) != sizeof(test))
+    if (jose_b64_dec(sig, test, sizeof_hash) != sizeof_hash)
         return false;
 
-    if (HMAC_Final(i->hctx, hash, &len) <= 0 || len != sizeof(hash))
+    if (HMAC_Final(i->hctx, hash, &len) <= 0 || len != sizeof_hash)
         return false;
 
-    return CRYPTO_memcmp(hash, test, sizeof(hash)) == 0;
+    return CRYPTO_memcmp(hash, test, sizeof_hash) == 0;
 }
 
 static HMAC_CTX *
 hmac(const jose_hook_alg_t *alg, jose_cfg_t *cfg,
      const json_t *sig, const json_t *jwk)
 {
-    uint8_t key[KEYMAX] = {};
+    uint8_t key[KEYMAX] = {0};
     const EVP_MD *md = NULL;
     HMAC_CTX *hctx = NULL;
     size_t keyl = 0;
@@ -313,7 +315,7 @@ constructor(void)
           .sign.sug = alg_sign_sug,
           .sign.sig = alg_sign_sig,
           .sign.ver = alg_sign_ver },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);

@@ -24,6 +24,8 @@
 #include <stdint.h>
 
 #define KEYMAX 1024
+#define HASHMAX 64
+#define CIPHER_BLOCK_MAX 64
 
 #define containerof(ptr, type, member) \
     ((type *)((char *) ptr - offsetof(type, member)))

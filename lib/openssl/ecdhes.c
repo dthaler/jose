@@ -51,13 +51,14 @@ concatkdf(const jose_hook_alg_t *alg, jose_cfg_t *cfg, uint8_t dk[], size_t dkl,
           const uint8_t z[], size_t zl, ...)
 {
     jose_io_auto_t *b = NULL;
-    uint8_t hsh[alg->hash.size];
-    size_t hshl = sizeof(hsh);
+    uint8_t hsh[HASHMAX];
+    size_t hshl = alg->hash.size;
     size_t reps = 0;
     size_t left = 0;
 
-    reps = dkl / sizeof(hsh);
-    left = dkl % sizeof(hsh);
+    assert(hshl <= HASHMAX);
+    reps = dkl / alg->hash.size;
+    left = dkl % alg->hash.size;
 
     b = jose_io_buffer(cfg, &hsh, &hshl);
     if (!b)
@@ -104,7 +105,7 @@ concatkdf(const jose_hook_alg_t *alg, jose_cfg_t *cfg, uint8_t dk[], size_t dkl,
         assert(hshl == alg->hash.size);
 
         memcpy(&dk[c * hshl], hsh, c == reps ? left : hshl);
-        OPENSSL_cleanse(hsh, sizeof(hsh));
+        OPENSSL_cleanse(hsh, alg->hash.size);
         hshl = 0;
     }
 
@@ -174,10 +175,10 @@ derive(const jose_hook_alg_t *alg, jose_cfg_t *cfg,
 {
     const jose_hook_alg_t *halg = NULL;
     const char *name = alg->name;
-    uint8_t pu[KEYMAX] = {};
-    uint8_t pv[KEYMAX] = {};
-    uint8_t dk[KEYMAX] = {};
-    uint8_t ky[KEYMAX] = {};
+    uint8_t pu[KEYMAX] = {0};
+    uint8_t pv[KEYMAX] = {0};
+    uint8_t dk[KEYMAX] = {0};
+    uint8_t ky[KEYMAX] = {0};
     const char *enc = NULL;
     json_t *out = NULL;
     size_t dkl = 0;
@@ -497,10 +498,17 @@ constructor(void)
           .wrap.enc = alg_wrap_enc,
           .wrap.wrp = alg_wrap_wrp,
           .wrap.unw = alg_wrap_unw },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);
     for (size_t i = 0; algs[i].name; i++)
         jose_hook_alg_push(&algs[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_ecdhes(void)
+{
+    constructor();
+}
+#endif

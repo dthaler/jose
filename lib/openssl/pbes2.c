@@ -52,8 +52,9 @@ pbkdf2(const char *alg, jose_cfg_t *cfg, const json_t *jwk, int iter,
     }
 
     const size_t pfx = strlen(alg) + 1;
-    uint8_t slt[pfx + stl];
-    uint8_t dk[dkl];
+    const size_t sizeof_slt = pfx + stl;
+    uint8_t* slt = (uint8_t*)alloca(sizeof_slt);
+    uint8_t* dk = (uint8_t*)alloca(dkl);
     char ky[KEYMAX];
 
     memcpy(slt, alg, pfx);
@@ -68,11 +69,11 @@ pbkdf2(const char *alg, jose_cfg_t *cfg, const json_t *jwk, int iter,
         return NULL;
     }
 
-    if (PKCS5_PBKDF2_HMAC(ky, kyl, slt, sizeof(slt), iter, md, dkl, dk) > 0)
+    if (PKCS5_PBKDF2_HMAC(ky, kyl, slt, sizeof_slt, iter, md, dkl, dk) > 0)
         cek = json_pack("{s:s,s:o}", "kty", "oct", "k", jose_b64_enc(dk, dkl));
 
     OPENSSL_cleanse(ky, sizeof(ky));
-    OPENSSL_cleanse(dk, sizeof(dk));
+    OPENSSL_cleanse(dk, dkl);
     return cek;
 }
 
@@ -206,7 +207,7 @@ alg_wrap_wrp(const jose_hook_alg_t *alg, jose_cfg_t *cfg, json_t *jwe,
     default: return false;
     }
 
-    uint8_t st[stl];
+    uint8_t* st = (uint8_t*)alloca(stl);
 
     if (RAND_bytes(st, stl) <= 0)
         return false;
@@ -249,7 +250,7 @@ alg_wrap_unw(const jose_hook_alg_t *alg, jose_cfg_t *cfg, const json_t *jwe,
 {
     json_auto_t *key = NULL;
     json_auto_t *hdr = NULL;
-    uint8_t st[KEYMAX] = {};
+    uint8_t st[KEYMAX] = {0};
     const char *aes = NULL;
     json_int_t p2c = -1;
     size_t stl = 0;
@@ -320,7 +321,7 @@ constructor(void)
           .wrap.enc = alg_wrap_enc,
           .wrap.wrp = alg_wrap_wrp,
           .wrap.unw = alg_wrap_unw },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);

@@ -23,6 +23,7 @@
 #include <openssl/rand.h>
 
 #include <string.h>
+#include <assert.h>
 
 #define NAMES "A128KW", "A192KW", "A256KW"
 
@@ -135,17 +136,23 @@ alg_wrap_wrp(const jose_hook_alg_t *alg, jose_cfg_t *cfg, json_t *jwe,
     default: return false;
     }
 
-    uint8_t ky[EVP_CIPHER_key_length(cph)];
-    uint8_t iv[EVP_CIPHER_iv_length(cph)];
+    const size_t sizeof_ky = EVP_CIPHER_key_length(cph);
+    uint8_t ky[KEYMAX];
+    const size_t sizeof_iv = EVP_CIPHER_iv_length(cph);
+    uint8_t iv[64];
     uint8_t pt[KEYMAX];
-    uint8_t ct[sizeof(pt) + EVP_CIPHER_block_size(cph) * 2];
+    const size_t sizeof_ct = sizeof(pt) + EVP_CIPHER_block_size(cph) * 2;
+    uint8_t ct[sizeof(pt) + CIPHER_BLOCK_MAX * 2];
 
+    assert(sizeof_ct <= sizeof(ct));
+    assert(sizeof_ky <= sizeof(ky));
+    assert(sizeof_iv <= sizeof(iv));
     memset(iv, 0xA6, EVP_CIPHER_iv_length(cph));
 
-    if (jose_b64_dec(json_object_get(jwk, "k"), NULL, 0) != sizeof(ky))
+    if (jose_b64_dec(json_object_get(jwk, "k"), NULL, 0) != sizeof_ky)
         goto egress;
 
-    if (jose_b64_dec(json_object_get(jwk, "k"), ky, sizeof(ky)) != sizeof(ky))
+    if (jose_b64_dec(json_object_get(jwk, "k"), ky, sizeof_ky) != sizeof_ky)
         goto egress;
 
     ptl = jose_b64_dec(json_object_get(cek, "k"), NULL, 0);
@@ -178,7 +185,7 @@ alg_wrap_wrp(const jose_hook_alg_t *alg, jose_cfg_t *cfg, json_t *jwe,
     ret = add_entity(jwe, rcp, "recipients", "header", "encrypted_key", NULL);
 
 egress:
-    OPENSSL_cleanse(ky, sizeof(ky));
+    OPENSSL_cleanse(ky, sizeof_ky);
     OPENSSL_cleanse(pt, sizeof(pt));
     EVP_CIPHER_CTX_free(ecc);
     return ret;
@@ -199,24 +206,31 @@ alg_wrap_unw(const jose_hook_alg_t *alg, jose_cfg_t *cfg, const json_t *jwe,
     case 0: cph = EVP_aes_128_wrap(); break;
     case 1: cph = EVP_aes_192_wrap(); break;
     case 2: cph = EVP_aes_256_wrap(); break;
-    default: return NULL;
+    default: return false;
     }
 
-    uint8_t ky[EVP_CIPHER_key_length(cph)];
-    uint8_t iv[EVP_CIPHER_iv_length(cph)];
-    uint8_t ct[KEYMAX + EVP_CIPHER_block_size(cph) * 2];
+    const size_t sizeof_ky = EVP_CIPHER_key_length(cph);
+    uint8_t ky[KEYMAX];
+    const size_t sizeof_iv = EVP_CIPHER_iv_length(cph);
+    uint8_t iv[64];
+    const size_t sizeof_ct = KEYMAX + EVP_CIPHER_block_size(cph) * 2;
+    uint8_t ct[KEYMAX + CIPHER_BLOCK_MAX * 2];
+    const size_t sizeof_pt = sizeof_ct;
     uint8_t pt[sizeof(ct)];
 
-    memset(iv, 0xA6, sizeof(iv));
+    assert(sizeof_ct <= sizeof(ct));
+    assert(sizeof_ky <= sizeof(ky));
+    assert(sizeof_iv <= sizeof(iv));
+    memset(iv, 0xA6, sizeof_iv);
 
-    if (jose_b64_dec(json_object_get(jwk, "k"), NULL, 0) != sizeof(ky))
+    if (jose_b64_dec(json_object_get(jwk, "k"), NULL, 0) != sizeof_ky)
         goto egress;
 
-    if (jose_b64_dec(json_object_get(jwk, "k"), ky, sizeof(ky)) != sizeof(ky))
+    if (jose_b64_dec(json_object_get(jwk, "k"), ky, sizeof_ky) != sizeof_ky)
         goto egress;
 
     ctl = jose_b64_dec(json_object_get(rcp, "encrypted_key"), NULL, 0);
-    if (ctl > sizeof(ct))
+    if (ctl > sizeof_ct)
         goto egress;
 
     if (jose_b64_dec(json_object_get(rcp, "encrypted_key"), ct, ctl) != ctl)
@@ -242,8 +256,8 @@ alg_wrap_unw(const jose_hook_alg_t *alg, jose_cfg_t *cfg, const json_t *jwe,
     ret = json_object_set_new(cek, "k", jose_b64_enc(pt, ptl)) == 0;
 
 egress:
-    OPENSSL_cleanse(ky, sizeof(ky));
-    OPENSSL_cleanse(pt, sizeof(pt));
+    OPENSSL_cleanse(ky, sizeof_ky);
+    OPENSSL_cleanse(pt, sizeof_pt);
     EVP_CIPHER_CTX_free(ecc);
     return ret;
 }
@@ -282,10 +296,17 @@ constructor(void)
           .wrap.enc = alg_wrap_enc,
           .wrap.wrp = alg_wrap_wrp,
           .wrap.unw = alg_wrap_unw },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);
     for (size_t i = 0; algs[i].name; i++)
         jose_hook_alg_push(&algs[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_aeskw(void)
+{
+    constructor();
+}
+#endif

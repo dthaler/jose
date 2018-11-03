@@ -290,7 +290,7 @@ constructor(void)
           .wrap.enc = alg_wrap_enc,
           .wrap.wrp = alg_wrap_wrp,
           .wrap.unw = alg_wrap_unw },
-        {}
+        {0}
     };
 
     jose_hook_jwk_push(&jwk);

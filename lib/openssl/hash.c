@@ -17,6 +17,7 @@
 
 #include "misc.h"
 #include "../hooks.h"
+#include <assert.h>
 
 typedef struct {
     jose_io_t io;
@@ -36,9 +37,10 @@ static bool
 hsh_done(jose_io_t *io)
 {
     io_t *i = containerof(io, io_t, io);
-    uint8_t hsh[EVP_MD_CTX_size(i->emc)];
+    uint8_t hsh[HASHMAX];
     unsigned int l = 0;
 
+    assert(EVP_MD_CTX_size(i->emc) <= HASHMAX);
     if (EVP_DigestFinal(i->emc, hsh, &l) <= 0)
         return SIZE_MAX;
 
@@ -106,9 +108,16 @@ constructor(void)
           .hash.size = 28, .hash.hsh = hsh },
         { .kind = JOSE_HOOK_ALG_KIND_HASH, .name = "S1",
           .hash.size = 20, .hash.hsh = hsh },
-        {}
+        {0}
     };
 
     for (size_t i = 0; algs[i].name; i++)
         jose_hook_alg_push(&algs[i]);
 }
+
+#ifdef USE_SGX
+void jose_init_hash(void)
+{
+    constructor();
+}
+#endif
