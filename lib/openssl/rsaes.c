@@ -367,3 +367,10 @@ constructor(void)
     for (size_t i = 0; alg[i].name; i++)
         jose_hook_alg_push(&alg[i]);
 }
+
+#ifdef OE_USE_SGX
+void jose_init_rsaes(void)
+{
+    constructor();
+}
+#endif

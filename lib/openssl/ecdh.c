@@ -149,7 +149,7 @@ constructor(void)
         jose_hook_alg_push(&ecdh[i]);
 }
 
-#ifdef USE_SGX
+#ifdef OE_USE_SGX
 void jose_init_ecdh(void)
 {
     constructor();

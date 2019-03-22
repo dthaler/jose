@@ -125,7 +125,7 @@ constructor(void)
     jose_hook_jwk_push(&jwk);
 }
 
-#ifdef USE_SGX
+#ifdef OE_USE_SGX
 void jose_init_rsa(void)
 {
     constructor();

@@ -473,7 +473,7 @@ constructor(void)
         jose_hook_jwk_push(&hooks[i]);
 }
 
-#ifdef USE_SGX
+#ifdef OE_USE_SGX
 void jose_init_jwk(void)
 {
     constructor();

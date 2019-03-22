@@ -23,7 +23,7 @@
 #include <string.h>
 #include <errno.h>
 
-#ifdef USE_SGX
+#ifdef OE_USE_SGX
 # define fprintf(...)
 # define vfprintf(...)
 #endif

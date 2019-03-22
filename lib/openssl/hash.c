@@ -115,7 +115,7 @@ constructor(void)
         jose_hook_alg_push(&algs[i]);
 }
 
-#ifdef USE_SGX
+#ifdef OE_USE_SGX
 void jose_init_hash(void)
 {
     constructor();
