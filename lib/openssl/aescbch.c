@@ -491,7 +491,7 @@ constructor(void)
         jose_hook_alg_push(&algs[i]);
 }
 
-#ifdef OE_USE_SGX
+#ifdef _MSC_VER
 void jose_init_aescbch(void)
 {
     constructor();

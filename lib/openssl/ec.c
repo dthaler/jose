@@ -81,7 +81,7 @@ constructor(void)
     jose_hook_jwk_push(&jwk);
 }
 
-#ifdef OE_USE_SGX
+#ifdef _MSC_VER
 void jose_init_ec(void)
 {
     constructor();

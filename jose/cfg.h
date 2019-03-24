@@ -27,6 +27,10 @@
 #include <stdarg.h>
 #include <stdint.h>
 
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
 enum {
     _JOSE_CFG_ERR_BASE = 0x1053000000000000ULL,
     JOSE_CFG_ERR_JWK_INVALID,
@@ -127,9 +131,7 @@ void
 jose_cfg_err(jose_cfg_t *cfg, uint64_t err, const char *fmt, ...);
 #else
 void
-#if !defined(_MSC_VER)
 __attribute__((format(printf, 5, 6)))
-#endif
 jose_cfg_err(jose_cfg_t *cfg, const char *file, int line, uint64_t err,
              const char *fmt, ...);
 
@@ -137,17 +139,9 @@ jose_cfg_err(jose_cfg_t *cfg, const char *file, int line, uint64_t err,
     jose_cfg_err(cfg, __FILE__, __LINE__, err, __VA_ARGS__)
 #endif
 
-#ifdef OE_USE_SGX
-/****************** SGX defines ***************/
-#include <stdlib.h>
-#include <sgx.h>
-#include <sgx_tprotected_fs.h>
-#define FILE SGX_FILE
-#define fwrite sgx_fwrite
-#define fopen  sgx_fopen_auto_key
-#define fclose sgx_fclose
-#define stdin NULL
-#define stderr NULL
+#ifdef OPENENCLAVE
+#include "openenclave/enclave.h"
+#include "openenclave/bits/stdio.h"
 #endif
 
 /** @} */
