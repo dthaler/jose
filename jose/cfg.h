@@ -23,6 +23,11 @@
 
 #pragma once
 
+#ifdef OPENENCLAVE
+#include "openenclave/enclave.h"
+#include "openenclave/bits/stdio.h"
+#endif
+
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -137,11 +142,6 @@ jose_cfg_err(jose_cfg_t *cfg, const char *file, int line, uint64_t err,
 
 #define jose_cfg_err(cfg, err, ...) \
     jose_cfg_err(cfg, __FILE__, __LINE__, err, __VA_ARGS__)
-#endif
-
-#ifdef OPENENCLAVE
-#include "openenclave/enclave.h"
-#include "openenclave/bits/stdio.h"
 #endif
 
 /** @} */
