@@ -25,7 +25,6 @@
 
 #ifdef OPENENCLAVE
 #include "openenclave/enclave.h"
-#include "openenclave/bits/stdio.h"
 #endif
 
 #include <stddef.h>
